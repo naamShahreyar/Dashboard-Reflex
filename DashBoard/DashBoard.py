@@ -1,8 +1,5 @@
-"""Welcome to Reflex! This file outlines the steps to create a basic app."""
-
 import reflex as rx
-
-from rxconfig import config
+from collections import Counter
 
 class User(rx.Base):
     """The user model."""
@@ -14,30 +11,41 @@ class User(rx.Base):
 
 class State(rx.State):
     users: list[User] = [
-        User(
-            name="Danilo Sousa",
-            email="danilo@example.com",
-            gender="Male",
-        ),
-        User(
-            name="Zahra Ambessa",
-            email="zahra@example.com",
-            gender="Female",
-        ),
+        User(name="Danilo Sousa", email="danilo@example.com", gender="Male"),
+        User(name="Zahra Ambessa", email="zahra@example.com", gender="Female"),
     ]
+    users_for_graph: list[dict] = []
 
     def add_user(self, form_data: dict):
         self.users.append(User(**form_data))
-
+        self.transform_data()
+    
+    def transform_data(self):
+        """Transform user gender group data into a format suitable for visualization in graphs."""
+        # Count users of each gender group
+        gender_counts = Counter(user.gender for user in self.users)
+        
+        # Transform into list of dict so it can be used in the graph
+        self.users_for_graph = [
+            {
+                "name": gender_group,
+                "value": count
+            }
+            for gender_group, count in gender_counts.items()
+        ]
+        
 
 def show_user(user: User):
-    """Show a person in a table row."""
+    """Show a user in a table row."""
     return rx.table.row(
         rx.table.cell(user.name),
         rx.table.cell(user.email),
         rx.table.cell(user.gender),
+        style={"_hover": 
+            {"bg": rx.color("gray", 3)}
+        },
+        align="center",
     )
-
 
 def add_customer_button() -> rx.Component:
     return rx.dialog.root(
@@ -57,9 +65,7 @@ def add_customer_button() -> rx.Component:
             rx.form(
                 rx.flex(
                     rx.input(
-                        placeholder="User Name",
-                        name="name",
-                        required=True,
+                        placeholder="User Name", name="name", required=True
                     ),
                     rx.input(
                         placeholder="user@reflex.dev",
@@ -67,7 +73,7 @@ def add_customer_button() -> rx.Component:
                     ),
                     rx.select(
                         ["Male", "Female"],
-                        placeholder="Male",
+                        placeholder="male",
                         name="gender",
                     ),
                     rx.flex(
@@ -96,6 +102,19 @@ def add_customer_button() -> rx.Component:
         ),
     )
 
+def graph():
+    return rx.recharts.bar_chart(
+        rx.recharts.bar(
+            data_key="value",
+            stroke=rx.color("accent", 9),
+            fill=rx.color("accent", 8),
+        ),
+        rx.recharts.x_axis(data_key="name"),
+        rx.recharts.y_axis(),
+        data=State.users_for_graph,
+        width="100%",
+        height=250,
+    )
 
 def index() -> rx.Component:
     return rx.vstack(
@@ -109,14 +128,29 @@ def index() -> rx.Component:
                 ),
             ),
             rx.table.body(
-                rx.foreach(State.users, show_user),
+                rx.foreach(
+                    State.users, show_user
+                ),
             ),
             variant="surface",
             size="3",
+            width="100%",
         ),
+        graph(),
+        align="center",
+        width="100%",
     )
 
 
+app = rx.App(
+    theme=rx.theme(
+        radius="full", accent_color="grass"
+    ),
+)
 
-app = rx.App()
-app.add_page(index)
+app.add_page(
+    index,
+    title="Customer Data App",
+    description="A simple app to manage customer data.",
+    on_load=State.transform_data,
+)
